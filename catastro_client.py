@@ -1,0 +1,14 @@
+capas:
+  red_natura_lic_zec:
+    nombre: "Red Natura 2000 (LIC/ZEC)"
+    servicio: "https://wms.mapama.gob.es/sig/Biodiversidad/RedNatura"
+    layer: "PS.ProtectedSite"
+    version: "1.3.0"
+    info_format: "application/json"
+
+  zonas_vulnerables_nitratos:
+    nombre: "Zonas Vulnerables a Nitratos (2025)"
+    servicio: "https://wms.mapama.gob.es/sig/agua/ZonasVulnerables/2025"
+    layer: "AM.NitrateVulnerableZone"
+    version: "1.3.0"
+    info_format: "application/json"
