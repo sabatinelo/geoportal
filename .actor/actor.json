@@ -1,0 +1,10 @@
+{
+    "actorSpecification": 1,
+    "name": "geoportal-mapama",
+    "title": "Geoportal MITECO - Afecciones ambientales de parcelas catastrales",
+    "description": "Servidor MCP que comprueba si parcelas catastrales estan afectadas por capas ambientales del Geoportal de MITECO",
+    "version": "1.0",
+    "usesStandbyMode": true,
+    "webServerMcpPath": "/mcp",
+    "dockerfile": "../Dockerfile"
+}
