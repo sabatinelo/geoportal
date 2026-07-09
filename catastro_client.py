@@ -1,4 +1,5 @@
 import httpx
+import certifi
 import xml.etree.ElementTree as ET
 
 WFS_CP = "http://ovc.catastro.meh.es/INSPIRE/wfsCP.aspx"
@@ -13,7 +14,7 @@ async def _obtener_gml(refcat: str) -> str:
         "REFCAT": refcat[:14],
         "SRSNAME": "EPSG:4326",
     }
-    async with httpx.AsyncClient(timeout=30) as client:
+    async with httpx.AsyncClient(timeout=30, verify=certifi.where()) as client:
         r = await client.get(WFS_CP, params=params)
         r.raise_for_status()
         return r.text
