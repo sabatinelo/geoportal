@@ -4,3 +4,4 @@ uvicorn
 httpx
 shapely
 pyyaml
+certifi>=2025.1.31
