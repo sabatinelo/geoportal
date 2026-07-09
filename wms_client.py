@@ -7,7 +7,7 @@ HEADERS = {"User-Agent": "Mozilla/5.0 (compatible; GeoportalMCP/1.0)"}
 
 async def get_capabilities(servicio_url: str, version: str = "1.3.0") -> str:
     params = {"service": "WMS", "version": version, "request": "GetCapabilities"}
-    async with httpx.AsyncClient(timeout=30, headers=HEADERS, verify=certifi.where()) as client:
+    async with httpx.AsyncClient(timeout=30, headers=HEADERS, verify=certifi.where(), follow_redirects=True) as client:
         r = await client.get(servicio_url, params=params)
         r.raise_for_status()
         return r.text
