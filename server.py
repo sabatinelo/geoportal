@@ -1,11 +1,15 @@
 import asyncio
-from mcp.server.fastmcp import FastMCP
-import yaml
+import os
 from pathlib import Path
 
-import wms_client
+import yaml
+from fastmcp import FastMCP
+from starlette.requests import Request
+from starlette.responses import JSONResponse
+
 import catastro_client
 import geometry_utils
+import wms_client
 
 mcp = FastMCP("geoportal-mapama")
 CAPAS_FILE = Path(__file__).parent / "capas.yaml"
@@ -23,7 +27,7 @@ def listar_capas_registradas() -> dict:
 
 
 @mcp.tool()
-async def descubrir_layers(servicio_url: str, version: str = "1.3.0") -> list[dict]:
+async def descubrir_layers(servicio_url: str, version: str = "1.1.1") -> list[dict]:
     """
     Consulta el GetCapabilities de un servicio WMS y devuelve todos los
     nombres de capa (Name) disponibles con su título. Úsalo para saber qué
@@ -39,14 +43,15 @@ async def anadir_capa(
     nombre: str,
     servicio_url: str,
     layer: str,
-    version: str = "1.3.0",
+    version: str = "1.1.1",
     info_format: str = "application/json",
 ) -> dict:
     """
-    Añade una nueva capa al registro capas.yaml. NOTA: en Apify el sistema
-    de archivos es efímero. La capa estará disponible mientras la instancia
-    siga viva, pero para hacerla permanente hay que añadirla al capas.yaml
-    del repositorio y reconstruir el Actor.
+    Añade una nueva capa al registro capas.yaml.
+
+    NOTA: en Render el sistema de archivos es efímero. La capa estará
+    disponible mientras la instancia siga viva, pero para hacerla permanente
+    hay que añadirla al capas.yaml del repositorio y redesplegar.
     """
     capas = _cargar_capas()
     capas[clave] = {
@@ -57,7 +62,11 @@ async def anadir_capa(
         "info_format": info_format,
     }
     CAPAS_FILE.write_text(yaml.dump({"capas": capas}, allow_unicode=True))
-    return {"ok": True, "clave": clave}
+    return {
+        "ok": True,
+        "clave": clave,
+        "aviso": "Capa temporal: para hacerla permanente, añádela a capas.yaml en el repositorio.",
+    }
 
 
 @mcp.tool()
@@ -80,17 +89,13 @@ async def parcela_afectada_por_capa(refcat: str, clave_capa: str) -> dict:
     geometria = geo["features"][0]["geometry"]
 
     puntos = geometry_utils.puntos_de_muestreo(geometria)
-
-    async def _consultar_punto(lon, lat):
+    resultados = []
+    for lon, lat in puntos:
         info = await wms_client.get_feature_info(
             capa["servicio"], capa["layer"], lon, lat,
             capa["version"], capa["info_format"],
         )
-        return {"punto": [lon, lat], "resultado": info}
-
-    # Lanzamos todas las peticiones WMS EN PARALELO, no una a una,
-    # para evitar superar el timeout de la pasarela MCP.
-    resultados = await asyncio.gather(*[_consultar_punto(lon, lat) for lon, lat in puntos])
+        resultados.append({"punto": [lon, lat], "resultado": info})
 
     afectada = geometry_utils.parcela_intersecta(resultados)
     return {
@@ -98,18 +103,49 @@ async def parcela_afectada_por_capa(refcat: str, clave_capa: str) -> dict:
         "capa": capa["nombre"],
         "afectada": afectada,
         "puntos_muestreados": len(puntos),
-        "detalle": list(resultados),
+        "detalle": resultados,
     }
 
 
 @mcp.tool()
 async def parcelas_afectadas_por_capa(refcats: list[str], clave_capa: str) -> dict:
     """Igual que parcela_afectada_por_capa pero para una lista de referencias catastrales."""
-    resultados = await asyncio.gather(*[
-        parcela_afectada_por_capa(rc, clave_capa) for rc in refcats
-    ])
-    return dict(zip(refcats, resultados))
+    out = {}
+    for rc in refcats:
+        out[rc] = await parcela_afectada_por_capa(rc, clave_capa)
+    return out
+
+
+AUTH_TOKEN = os.environ.get("AUTH_TOKEN", "")
+
+
+class TokenAuthMiddleware:
+    """Exige ?token=... o cabecera Authorization: Bearer ... si AUTH_TOKEN está definido."""
+
+    def __init__(self, app):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] == "http" and AUTH_TOKEN:
+            from urllib.parse import parse_qs
+
+            qs = parse_qs(scope.get("query_string", b"").decode())
+            token = (qs.get("token") or [""])[0]
+            if not token:
+                headers = dict(scope.get("headers") or [])
+                auth = headers.get(b"authorization", b"").decode()
+                if auth.lower().startswith("bearer "):
+                    token = auth[7:]
+            if token != AUTH_TOKEN:
+                response = JSONResponse({"error": "unauthorized"}, status_code=401)
+                await response(scope, receive, send)
+                return
+        await self.app(scope, receive, send)
 
 
 if __name__ == "__main__":
-    mcp.run(transport="stdio")
+    import uvicorn
+
+    port = int(os.environ.get("PORT", 8000))
+    app = TokenAuthMiddleware(mcp.http_app(transport="streamable-http"))
+    uvicorn.run(app, host="0.0.0.0", port=port)
