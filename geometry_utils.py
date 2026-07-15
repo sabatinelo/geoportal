@@ -20,7 +20,6 @@ def puntos_de_muestreo(geojson_geom: dict, n_extra: int = 8) -> list[tuple[float
 def parcela_intersecta(resultados: list[dict]) -> bool:
     """True si algún punto muestreado devolvió features en la capa."""
     for r in resultados:
-        features = r.get("resultado", {}).get("features", [])
-        if features:
+        if r.get("resultado", {}).get("n_features", 0) > 0:
             return True
     return False
