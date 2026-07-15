@@ -26,3 +26,10 @@ capas:
     layer: "AM.WaterBodyForWFD"
     version: "1.3.0"
     info_format: "application/json"
+
+  enp_espacios_naturales_protegidos:
+    nombre: "Espacios Naturales Protegidos (ENP)"
+    servicio: "https://wms.mapama.gob.es/sig/Biodiversidad/ENP"
+    layer: "PS.ProtectedSite"
+    version: "1.3.0"
+    info_format: "application/json"
