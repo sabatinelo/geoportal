@@ -12,3 +12,17 @@ capas:
     layer: "AM.NitrateVulnerableZone"
     version: "1.3.0"
     info_format: "application/json"
+
+  estado_cuantitativo_masas_agua_sub:
+    nombre: "Estado cuantitativo masas de agua subterránea PHC 2022-2027"
+    servicio: "https://wms.mapama.gob.es/sig/Agua/PHC/EstCuaMasasAguaSub2027"
+    layer: "AM.WaterBodyForWFD"
+    version: "1.3.0"
+    info_format: "application/json"
+
+  estado_quimico_masas_agua_sub:
+    nombre: "Estado químico masas de agua subterránea PHC 2022-2027"
+    servicio: "https://wms.mapama.gob.es/sig/Agua/PHC/EstQuiMasasAguaSub2027"
+    layer: "AM.WaterBodyForWFD"
+    version: "1.3.0"
+    info_format: "application/json"
