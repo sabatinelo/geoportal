@@ -95,7 +95,7 @@ async def parcela_afectada_por_capa(refcat: str, clave_capa: str) -> dict:
             capa["servicio"], capa["layer"], lon, lat,
             capa["version"], capa["info_format"],
         )
-        resultados.append({"punto": [lon, lat], "resultado": {"n_features": len(info.get("features", [])), "properties": [f.get("properties", {}) for f in info.get("features", [])]}})        
+        resultados.append({"punto": [lon, lat], "resultado": _resumir_info(info)})
 
     afectada = geometry_utils.parcela_intersecta(resultados)
     return {
@@ -116,7 +116,54 @@ async def parcelas_afectadas_por_capa(refcats: list[str], clave_capa: str) -> di
     return out
 
 
+def _resumir_info(info: dict) -> dict:
+    """Recorta las respuestas de GetFeatureInfo: quita geometrias para no exceder el tamano maximo."""
+    feats = info.get("features")
+    if feats is None:
+        return info
+    return {
+        "features": [{"properties": f.get("properties", {})} for f in feats],
+        "n_features": len(feats),
+    }
+
+
 AUTH_TOKEN = os.environ.get("AUTH_TOKEN", "")
+
+# Rutas públicas que NO exigen token: los clientes MCP las consultan durante el
+# registro (descubrimiento OAuth) antes de autenticarse. Deben responder sin auth.
+PUBLIC_PATHS = (
+    "/.well-known/oauth-protected-resource",
+    "/.well-known/oauth-authorization-server",
+)
+
+
+@mcp.custom_route("/.well-known/oauth-protected-resource", methods=["GET"])
+async def oauth_protected_resource(request: Request) -> JSONResponse:
+    base = str(request.base_url).rstrip("/")
+    return JSONResponse(
+        {
+            "resource": base + "/mcp",
+            "authorization_servers": [base],
+            "bearer_methods_supported": ["header"],
+        }
+    )
+
+
+@mcp.custom_route("/.well-known/oauth-authorization-server", methods=["GET"])
+async def oauth_authorization_server(request: Request) -> JSONResponse:
+    # Metadata mínima. No ofrecemos flujo OAuth real (auth por token estático),
+    # pero exponer este documento evita que clientes estrictos aborten el registro.
+    base = str(request.base_url).rstrip("/")
+    return JSONResponse(
+        {
+            "issuer": base,
+            "authorization_endpoint": base + "/authorize",
+            "token_endpoint": base + "/token",
+            "response_types_supported": ["code"],
+            "grant_types_supported": ["authorization_code"],
+            "token_endpoint_auth_methods_supported": ["none"],
+        }
+    )
 
 
 class TokenAuthMiddleware:
@@ -127,6 +174,11 @@ class TokenAuthMiddleware:
 
     async def __call__(self, scope, receive, send):
         if scope["type"] == "http" and AUTH_TOKEN:
+            path = scope.get("path", "")
+            if path in PUBLIC_PATHS:
+                await self.app(scope, receive, send)
+                return
+
             from urllib.parse import parse_qs
 
             qs = parse_qs(scope.get("query_string", b"").decode())
