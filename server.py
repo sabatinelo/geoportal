@@ -95,7 +95,7 @@ async def parcela_afectada_por_capa(refcat: str, clave_capa: str) -> dict:
             capa["servicio"], capa["layer"], lon, lat,
             capa["version"], capa["info_format"],
         )
-        resultados.append({"punto": [lon, lat], "resultado": info})
+        resultados.append({"punto": [lon, lat], "resultado": {"n_features": len(info.get("features", [])), "properties": [f.get("properties", {}) for f in info.get("features", [])]}})        
 
     afectada = geometry_utils.parcela_intersecta(resultados)
     return {
